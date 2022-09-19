@@ -1,0 +1,20 @@
+name = "workers-for-platforms-example-project"
+main = "src/index.ts"
+compatibility_date = "2022-08-15"
+
+[[ dispatch_namespaces ]]
+binding = "dispatcher"
+namespace = "workers-for-platforms-example-project"
+
+[[ d1_databases ]]
+binding = "DB"
+database_name = "workers-for-platforms-example-project"
+database_id = ""
+preview_database_id = ""
+
+[vars]
+DISPATCH_NAMESPACE_ACCOUNT_ID = ""
+DISPATCH_NAMESPACE_AUTH_EMAIL = ""
+# The necessary secrets are:
+# - DISPATCH_NAMESPACE_AUTH_KEY
+# Run `echo <VALUE> | wrangler secret put <NAME>` for each of these
