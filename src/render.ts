@@ -1,7 +1,7 @@
 // Copyright (c) 2022 Cloudflare, Inc.
 // Licensed under the APACHE LICENSE, VERSION 2.0 license found in the LICENSE file or at http://www.apache.org/licenses/LICENSE-2.0
 
-import { ResourceValues } from "./types";
+import { ResourceValues } from './types';
 
 function ResourceValueToString(value: ResourceValues) {
   return value?.toString() ?? 'null';
@@ -9,15 +9,17 @@ function ResourceValueToString(value: ResourceValues) {
 
 export function BuildTable(name: string, dataRows: Record<string, string | number | boolean | null>[] | undefined): string {
   const container = (value: ResourceValues) => `<div class="dataContainer"><h3>${name}</h3>${ResourceValueToString(value)}</div>`;
-  if (!dataRows?.length) { return container('no data'); }
+  if (!dataRows?.length) {
+    return container('no data');
+  }
   const columns = Object.keys(dataRows[0]);
-  const makeColumnsHead = (values: ResourceValues[]) => values.map(value => `<th>${ResourceValueToString(value)}</th>`).join('');
-  const makeColumnsData = (values: ResourceValues[]) => values.map(value => `<td>${ResourceValueToString(value)}</td>`).join('');
+  const makeColumnsHead = (values: ResourceValues[]) => values.map((value) => `<th>${ResourceValueToString(value)}</th>`).join('');
+  const makeColumnsData = (values: ResourceValues[]) => values.map((value) => `<td>${ResourceValueToString(value)}</td>`).join('');
   const makeRow = (value: ResourceValues) => `<tr>${ResourceValueToString(value)}</tr>`;
   const table = `<table class="dataTable">${[
-      makeRow(makeColumnsHead(columns)),
-      dataRows.map(value => makeRow(makeColumnsData(Object.values(value)))).join('')
-    ].join('')}</table>`;
+    makeRow(makeColumnsHead(columns)),
+    dataRows.map((value) => makeRow(makeColumnsData(Object.values(value)))).join(''),
+  ].join('')}</table>`;
   return container(table);
 }
 
@@ -63,7 +65,7 @@ hr.solid {
   background-color: #f4801f;
   color: white;
 }
-`
+`;
 
 export const HtmlPage = (body: string) => `
 <!DOCTYPE html><html>
@@ -72,7 +74,7 @@ export const HtmlPage = (body: string) => `
 <div class="header">
   <h1>Workers for Platforms Example Project</h1>
   <a href="/">admin portal</a>
-  &nbsp;|&nbsp; 
+  &nbsp;|&nbsp;
   <a href="/upload">customer portal</a>
   <br /><br />
   <div>
@@ -156,4 +158,4 @@ async function handleRequest(request) {
     responseDiv.innerHTML = await response.text();
   }
 </script>
-`
+`;
