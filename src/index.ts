@@ -101,7 +101,8 @@ router
       const worker = env.dispatcher.get(request.params.name);
       return worker.fetch(request);
     } catch (e: unknown) {
-      if (e instanceof Error && e.message === 'Error: Worker not found.') {
+      console.log(e instanceof Error);
+      if (e instanceof Error && e.message.startsWith('Worker not found')) {
         return ApiResponse('Script does not exist', 404);
       }
       /*
@@ -170,4 +171,11 @@ router
     }
 
     return ApiResponse('Success', 201);
+  })
+
+  /*
+  * Gracefully handle undefined routes.
+  */
+  .all('*', (request) => {
+    return new Response(`Could not route from url: ${request.url}`, { status: 404 });
   });

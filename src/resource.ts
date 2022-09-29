@@ -60,12 +60,20 @@ export async function GetTagsOnScript(env: Env, scriptName: string): Promise<str
 }
 
 export async function PutScriptInDispatchNamespace(env: Env, scriptName: string, scriptContent: string): Promise<Response> {
+  const scriptFileName = `${scriptName}.mjs`;
+  const metadata = {
+    'main_module': scriptFileName  
+  };
+  const formData = new FormData();
+  formData.append('script', new File([scriptContent], scriptFileName, { type: 'application/javascript+module'}));
+  const helloModuleContent = 'const hello = "Hello World!"; export { hello };';
+  formData.append('hello_module', new File([helloModuleContent], 'hello_module.mjs', { type: 'application/javascript+module'}));
+  formData.append('metadata', new File([JSON.stringify(metadata)], 'metadata.json', { type: 'application/json'}));
   return await fetch(`${ScriptsURI(env)}/${scriptName}`, {
     method: 'PUT',
-    body: scriptContent,
+    body: formData,
     headers: {
-      'Content-Type': 'application/javascript',
-      ...MakeHeaders(env),
+      ...MakeHeaders(env)
     },
   });
 }
