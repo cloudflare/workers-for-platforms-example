@@ -108,13 +108,15 @@ export const UploadPage = `
 <label for="scriptContents"><b>Script Contents</b></label>
 <br />
 <textarea id="scriptContents" name="scriptContents" rows="10" cols="50">
-addEventListener("fetch", event => {
-  event.respondWith(handleRequest(event.request));
-})
-
-async function handleRequest(request) {
-  return new Response("Hello world");
-}
+import { platformThing } from "./platform_module.mjs";
+var src = {
+  async fetch(request, env, ctx) {
+    return new Response("Hello! " + platformThing);
+  }
+};
+export {
+  src as default
+};
 </textarea>
 
 <br /><br />
