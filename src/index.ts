@@ -174,8 +174,8 @@ router
   })
 
   /*
-  * Gracefully handle undefined routes.
-  */
+   * Gracefully handle undefined routes.
+   */
   .all('*', (request) => {
     return new Response(`Could not route from url: ${request.url}`, { status: 404 });
   });

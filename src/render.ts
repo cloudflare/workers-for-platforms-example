@@ -108,10 +108,10 @@ export const UploadPage = `
 <label for="scriptContents"><b>Script Contents</b></label>
 <br />
 <textarea id="scriptContents" name="scriptContents" rows="10" cols="50">
-import { hello } from "./hello_module.mjs";
+import { platformThing } from "./platform_module.mjs";
 var src = {
   async fetch(request, env, ctx) {
-    return new Response(hello);
+    return new Response("Hello! " + platformThing);
   }
 };
 export {
