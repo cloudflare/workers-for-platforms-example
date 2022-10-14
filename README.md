@@ -38,9 +38,7 @@ This project depends on:
 
 ## Getting started
 
-Your Cloudflare account needs access to Workers for Platforms. Please talk to your CSM to request access.
-
-> As of 7 Sept 2022, you need to install wrangler@d1 to use the D1 binding: `npm install wrangler@d1`.
+Your Cloudflare account needs access to Workers for Platforms and D1.
 
 1. Install the package and dependencies:
 
@@ -78,15 +76,15 @@ Your Cloudflare account needs access to Workers for Platforms. Please talk to yo
    > 1. Click "Create Token". This token is used with `Bearer`. OR:
    > 2. Click "View" next to "Global API Key". This token is the `X-Auth-Key`.
 
-5. Run the Worker in dev local mode.
+5. Run the Worker in dev mode:
    ```
-   npx wrangler dev --local
+   npx wrangler dev
    ```
    Or publish:
    ```
    npx wrangler publish
    ```
-   > As of 7 Sept 2022, dynamic dispatch does not work in wrangler dev mode. However, it will work when published. We will support this in the future.
+   > Dev mode will still use the configured dispatch namespace. Take care you're not accidentally modifying production!
 
 Once the Worker is live, visit [localhost:8787](http://localhost:8787/) in a browser and click the `Initialize` link. Have fun!
 
