@@ -51,3 +51,16 @@ export function HtmlResponse(body: string): Response {
     headers: { 'content-type': 'text/html;charset=UTF-8' },
   });
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function handleDispatchError(e: any): Response {
+  console.log(e instanceof Error);
+  if (e instanceof Error && e.message.startsWith('Worker not found')) {
+    return ApiResponse('Script does not exist', 404);
+  }
+  /*
+   * This is a notable error that should be logged.
+   */
+  console.log(JSON.stringify(e, Object.getOwnPropertyNames(e)));
+  return ApiResponse('Could not connect to script', 500);
+}
