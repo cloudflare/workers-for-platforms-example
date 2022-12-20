@@ -13,7 +13,7 @@ import {
   PutTagsOnScript,
   GetTagsOnScript,
 } from './resource';
-import { ApiResponse, HtmlResponse, JsonResponse, WithCustomer, WithDB } from './router';
+import { ApiResponse, HtmlResponse, JsonResponse, WithCustomer, WithDB, handleDispatchError } from './router';
 import { BuildTable, UploadPage } from './render';
 import { IRequest } from './types';
 
@@ -98,18 +98,24 @@ router
   .get('/dispatch/:name', async (request: IRequest, env: Env) => {
     try {
       // TODO: doesn't work with wrangler local yet
-      const worker = env.dispatcher.get(request.params.name);
-      return worker.fetch(request);
-    } catch (e: unknown) {
-      console.log(e instanceof Error);
-      if (e instanceof Error && e.message.startsWith('Worker not found')) {
-        return ApiResponse('Script does not exist', 404);
-      }
+
       /*
-       * This is a notable error that should be logged.
+       * look up the worker within our namespace binding.
+       *
+       * this is a lazy operation. if the worker does not exist in our namespace,
+       * no error will be returned until we actually try to `.fetch()` against it.
        */
-      console.log(JSON.stringify(e, Object.getOwnPropertyNames(e)));
-      return ApiResponse('Could not connect to script', 500);
+      const worker = env.dispatcher.get(request.params.name);
+
+      /*
+       * call `.fetch()` on the retrieved worker to invoke it with the request.
+       *
+       * either `await` or `.catch()` must be used here to return a different
+       * response for the 'worker not found' exception.
+       */
+      return worker.fetch(request).catch(handleDispatchError);
+    } catch (e: unknown) {
+      return handleDispatchError(e);
     }
   })
 
