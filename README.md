@@ -2,7 +2,7 @@
 
 - [Blog post](https://blog.cloudflare.com/workers-for-platforms/)
 - [Docs](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms)
-- [Discord](https://discord.gg/Qgq5WNUy)
+- [Discord](https://discord.cloudflare.com/)
 
 For SaaS companies, it's challenging to keep up with the never ending requests for customizations. You want your development team to focus on building the core business instead of building and maintaining custom features for every customer use case. Workers for Platforms gives your customers the ability to build services and customizations (powered by Workers) while you retain full control over how their code is executed and billed. The **dynamic dispatch namespaces** feature makes this possible.
 
