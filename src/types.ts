@@ -11,6 +11,33 @@ export interface IRequest extends Request {
   params: Obj;
   db: D1QB;
   customer: Customer;
+  dispatchLimits: DispatchLimits;
+  init: RequestInit;
+}
+
+/*
+ * script_id: script that these limits are configured on.
+ * cpuMs: optional limit on cpuMs.
+ * memory: optional limit on memory.
+ */
+export interface DispatchLimits {
+  script_id: string;
+  cpuMs?: number;
+  memory?: number;
+}
+
+/*
+ * Interface to describe an OutboundWorker record in D1.
+ * script_id: the id of the script that the outbound worker is being attached to.
+ * outbound_script_id: the script we are attaching.
+ */
+export interface OutboundWorker {
+  script_id: string;
+  outbound_script_id: string;
+}
+
+export interface WorkerArgs {
+  init?: RequestInit;
 }
 
 export interface Customer {

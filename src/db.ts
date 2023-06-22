@@ -2,7 +2,8 @@
 // Licensed under the APACHE LICENSE, VERSION 2.0 license found in the LICENSE file or at http://www.apache.org/licenses/LICENSE-2.0
 
 import { D1QB, FetchTypes } from 'workers-qb';
-import { Customer, CustomerToken, ResourceRecord } from './types';
+import { Customer, CustomerToken, ResourceRecord, DispatchLimits, OutboundWorker } from './types';
+import { ResultOne } from 'workers-qb/dist/types/interfaces';
 
 export async function Initialize(db: D1QB) {
   const tables: { name: string; schema: string }[] = [
@@ -13,6 +14,14 @@ export async function Initialize(db: D1QB) {
     {
       name: 'customer_tokens',
       schema: 'token TEXT PRIMARY KEY, customer_id TEXT NOT NULL',
+    },
+    {
+      name: 'dispatch_limits',
+      schema: 'script_id TEXT PRIMARY KEY, cpuMs INTEGER, memory INTEGER',
+    },
+    {
+      name: 'outbound_workers',
+      schema: 'script_id TEXT PRIMARY KEY, outbound_script_id TEXT NOT NULL',
     },
   ];
 
@@ -93,4 +102,40 @@ export async function GetCustomerFromToken(db: D1QB, token: string): Promise<Cus
     arguments: [token],
     fetchType: FetchTypes.ONE,
   })) as Customer;
+}
+
+export async function AddDispatchLimits(db: D1QB, dispatchLimits: DispatchLimits) {
+  return db.insert({
+    tableName: 'dispatch_limits',
+    data: dispatchLimits as unknown as Record<string, string>,
+  });
+}
+
+export async function GetDispatchLimitFromScript(db: D1QB, scriptName: string): Promise<ResultOne> {
+  return await db.fetchOne({
+    tableName: 'dispatch_limits',
+    fields: '*',
+    where: {
+      conditions: 'dispatch_limits.script_id IS ?',
+      params: [scriptName],
+    },
+  });
+}
+
+export async function AddOutboundWorker(db: D1QB, outboundWorker: OutboundWorker) {
+  return db.insert({
+    tableName: 'outbound_workers',
+    data: outboundWorker as unknown as Record<string, string>,
+  });
+}
+
+export async function GetOutboundWorkerFromScript(db: D1QB, scriptName: string): Promise<ResultOne> {
+  return await db.fetchOne({
+    tableName: 'outbound_workers',
+    fields: '*',
+    where: {
+      conditions: 'outbound_workers.script_id IS ?',
+      params: [scriptName],
+    },
+  });
 }

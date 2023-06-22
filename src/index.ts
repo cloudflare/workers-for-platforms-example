@@ -3,7 +3,7 @@
 
 import { Router } from 'itty-router';
 
-import { FetchTable, Initialize } from './db';
+import { AddDispatchLimits, AddOutboundWorker, FetchTable, GetDispatchLimitFromScript, GetOutboundWorkerFromScript, Initialize } from './db';
 import { DISPATCH_NAMESPACE_NAME, Env } from './env';
 import {
   GetScriptsByTags,
@@ -15,7 +15,7 @@ import {
 } from './resource';
 import { ApiResponse, HtmlResponse, JsonResponse, WithCustomer, WithDB, handleDispatchError } from './router';
 import { BuildTable, UploadPage } from './render';
-import { IRequest } from './types';
+import { DispatchLimits, IRequest, OutboundWorker, WorkerArgs } from './types';
 
 const router = Router();
 
@@ -95,18 +95,23 @@ router
   /*
    * Dispatch a script
    */
-  .get('/dispatch/:name', async (request: IRequest, env: Env) => {
+  .get('/dispatch/:name', WithDB, async (request: IRequest, env: Env) => {
     try {
       // TODO: doesn't work with wrangler local yet
 
       /*
        * look up the worker within our namespace binding.
+       * Also look up any custom config tied to this script + outbound workers on this script
+       * to attach to the GET call.
        *
        * this is a lazy operation. if the worker does not exist in our namespace,
        * no error will be returned until we actually try to `.fetch()` against it.
        */
-      const worker = env.dispatcher.get(request.params.name);
-
+      const scriptName = request.params.name;
+      const dispatchLimits = (await GetDispatchLimitFromScript(request.db, scriptName)).results as unknown as DispatchLimits;
+      const outboundWorker = (await GetOutboundWorkerFromScript(request.db, scriptName)).results as unknown as OutboundWorker;
+      let workerArgs: WorkerArgs = {};
+      const worker = env.dispatcher.get(scriptName, workerArgs, { limits: dispatchLimits, outbound: outboundWorker.outbound_script_id });
       /*
        * call `.fetch()` on the retrieved worker to invoke it with the request.
        *
@@ -147,13 +152,31 @@ router
     }
 
     /*
-     * Get script content from request.
+     * Get script content and limits from request.
      */
     let scriptContent: string;
+    let limits: DispatchLimits;
+    let outbound: OutboundWorker;
     try {
-      scriptContent = ((await request.json()) as { script: string }).script;
+      const data: {
+        script: string;
+        dispatch_config: {
+          limits?: { cpuMs: number; memory: number };
+          outbound: string;
+        };
+      } = (await request.json()) as {
+        script: string;
+        dispatch_config: {
+          limits?: { cpuMs: number; memory: number };
+          outbound: string;
+        };
+      };
+
+      scriptContent = data.script;
+      limits = { script_id: scriptName, ...data.dispatch_config.limits };
+      outbound = { script_id: scriptName, outbound_script_id: data.dispatch_config.outbound };
     } catch (e) {
-      return ApiResponse('Expected json: { script: string }', 400);
+      return ApiResponse('Expected json: { script: string, dispatch_config: { limits?: { cpuMs: number, memory: number }, outbound: string }}', 400);
     }
 
     /*
@@ -164,6 +187,20 @@ router
     const scriptResponse = await PutScriptInDispatchNamespace(env, scriptName, scriptContent);
     if (!scriptResponse.ok) {
       return JsonResponse(await scriptResponse.json(), 400);
+    }
+
+    /*
+     * Persist the dispatch limits (if any) in d1 with the scriptName as primary key
+     */
+    if (limits.cpuMs || limits.memory) await AddDispatchLimits(request.db, limits);
+
+    /*
+     * Persist the outbound worker in d1 with scriptName as primary key
+     * In practice you will need to add more params with the outbound worker, refer
+     * to our documentation here: https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/platform/outbound-workers/
+     */
+    if (outbound?.outbound_script_id !== '') {
+      await AddOutboundWorker(request.db, outbound);
     }
 
     /*

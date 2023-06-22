@@ -96,7 +96,7 @@ export const UploadPage = `
 
 <br /><br />
 
-<button onclick="getScripts()">Get scripts</button>
+<button onclick="setScripts()">Get scripts</button>
 
 <br /><br />
 
@@ -118,6 +118,18 @@ export {
   src as default
 };
 </textarea>
+<div>
+  <input type="number" id="cpuMsDispatchLimit" placeholder="cpu limit (ms)">
+  <input type="number" id="memoryDispatchLimit" placeholder="memory limit">
+</div>
+<br /><br />
+
+<div>
+  <label for="outboundWorker"><b>Outbound Worker</b></label>
+  <select id="outbound_selector" name="outbound_worker">
+    <option value=''>Select a worker</option>
+  </select>
+</div>
 
 <br /><br />
 
@@ -135,13 +147,15 @@ export {
     const token = document.querySelector("#token").value;
     const scriptName = document.querySelector("#scriptName").value;
     const scriptContents = document.querySelector("#scriptContents").value;
-
+    const cpuMs = document.getElementById('cpuMsDispatchLimit')?.value;
+    const memory = document.getElementById('memoryDispatchLimit')?.value;
+    const dispatchLimits = { cpuMs, memory };
+    const outboundWorker = document.getElementById('outbound_selector').value;
     responseDiv.innerHTML = "uploading..."
-
     const response = await fetch("/script/" + scriptName, {
       method: "PUT",
       headers: { "Content-Type": "application/json", "X-Customer-Token": token },
-      body: JSON.stringify({ "script": scriptContents })
+      body: JSON.stringify({ "script": scriptContents, "dispatch_config": { "limits": dispatchLimits, "outbound": outboundWorker } })
     });
 
     responseDiv.innerHTML = await response.text();
@@ -149,15 +163,33 @@ export {
 
   async function getScripts() {
     const token = document.querySelector("#token").value;
-
-    responseDiv.innerHTML = "fetching..."
-
     const response = await fetch("/script", {
       method: "GET",
       headers: { "X-Customer-Token": token }
     });
+    return response;
+  }
 
+  async function setScripts() {
+    responseDiv.innerHTML = "fetching...";
+    const response = await getScripts();
     responseDiv.innerHTML = await response.text();
   }
+
+  async function setScriptsInSelector() {
+    const selector = document.getElementById("outbound_selector");
+    const response = await getScripts();
+    const data = await response.json();
+    data.map((script) => {
+      var option = document.createElement("option");
+      option.text = script.id;
+      selector.add(option);
+    });
+  }
+
+  window.addEventListener("load", (event) => {
+    setScriptsInSelector();
+  });
+
 </script>
 `;
