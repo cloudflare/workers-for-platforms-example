@@ -78,7 +78,7 @@ Your Cloudflare account needs access to Workers for Platforms and D1.
 
 5. Run the Worker in dev mode:
    ```
-   npx wrangler dev
+   npx wrangler dev --local
    ```
    Or publish:
    ```
