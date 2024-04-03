@@ -1,14 +1,13 @@
 // Copyright (c) 2022 Cloudflare, Inc.
 // Licensed under the APACHE LICENSE, VERSION 2.0 license found in the LICENSE file or at http://www.apache.org/licenses/LICENSE-2.0
 
-import { DISPATCH_NAMESPACE_NAME, Env } from './env';
+import { Env } from './env';
 import { ApiScript, ApiScriptWithTags } from './types';
 
 const BaseURI = (env: Env) => `https://api.cloudflare.com/client/v4/accounts/${env.DISPATCH_NAMESPACE_ACCOUNT_ID}/workers`;
-const ScriptsURI = (env: Env) => `${BaseURI(env)}/dispatch/namespaces/${DISPATCH_NAMESPACE_NAME}/scripts`;
+const ScriptsURI = (env: Env) => `${BaseURI(env)}/dispatch/namespaces/${env.DISPATCH_NAMESPACE_NAME}/scripts`;
 const MakeHeaders = (env: Env) => ({
-  'X-Auth-Email': env.DISPATCH_NAMESPACE_AUTH_EMAIL,
-  'X-Auth-Key': env.DISPATCH_NAMESPACE_AUTH_KEY,
+  'Authorization': `Bearer ${env.DISPATCH_NAMESPACE_API_TOKEN}`,
 });
 
 export async function GetScriptsInDispatchNamespace(env: Env): Promise<ApiScript[]> {
