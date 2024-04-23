@@ -2,6 +2,9 @@
   "name": "workers-for-platforms-example-project",
   "version": "1.0.0",
   "license": "Apache-2.0",
+  "engines": {
+    "node": "<20"
+  },
   "devDependencies": {
     "@cloudflare/d1": "^1.4.1",
     "@cloudflare/workers-types": "^4.20240329.0",
