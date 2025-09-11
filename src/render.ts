@@ -67,7 +67,7 @@ hr.solid {
 }
 `;
 
-export const HtmlPage = (body: string) => `
+export const renderPage = (body: string) => `
 <!DOCTYPE html><html>
 <head><style>${CSS}</style></head>
 <body>
@@ -109,13 +109,10 @@ export const UploadPage = `
 <br />
 <textarea id="scriptContents" name="scriptContents" rows="10" cols="50">
 import { platformThing } from "./platform_module.mjs";
-var src = {
+export default {
   async fetch(request, env, ctx) {
     return new Response("Hello! " + platformThing);
   }
-};
-export {
-  src as default
 };
 </textarea>
 <div>

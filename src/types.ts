@@ -1,19 +1,8 @@
 // Copyright (c) 2022 Cloudflare, Inc.
 // Licensed under the APACHE LICENSE, VERSION 2.0 license found in the LICENSE file or at http://www.apache.org/licenses/LICENSE-2.0
 
-import { D1QB } from 'workers-qb';
-import { Obj } from 'itty-router';
-
 export type ResourceValues = string | number | boolean | null;
 export type ResourceRecord = Record<string, ResourceValues>;
-
-export interface IRequest extends Request {
-  params: Obj;
-  db: D1QB;
-  customer: Customer;
-  dispatchLimits: DispatchLimits;
-  init: RequestInit;
-}
 
 /*
  * script_id: script that these limits are configured on.

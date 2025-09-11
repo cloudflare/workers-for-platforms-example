@@ -4,19 +4,14 @@
 import { WorkerArgs } from './types';
 
 /*
- * Dispatch Namespace name -- needs to be same value as defined in wrangler.toml
- */
-export const DISPATCH_NAMESPACE_NAME = 'workers-for-platforms-example-project';
-
-/*
  * Available bindings -- defined in wrangler.toml
  */
-export interface Env {
+export type Env = {
   dispatcher: Dispatcher;
   DB: object;
+  DISPATCH_NAMESPACE_NAME: string;
   DISPATCH_NAMESPACE_ACCOUNT_ID: string;
-  DISPATCH_NAMESPACE_AUTH_EMAIL: string;
-  DISPATCH_NAMESPACE_AUTH_KEY: string;
+  DISPATCH_NAMESPACE_API_TOKEN: string;
 }
 
 interface Dispatcher {
