@@ -1,0 +1,21 @@
+name = "n8n-app"
+compatibility_date = "2024-02-22"
+
+[build]
+command = "npm install && npm run build"
+
+[site]
+bucket = "./dist"
+
+[build.upload]
+format = "service-worker"
+
+[[kv_namespaces]]
+binding = "N8N_KV"
+preview_id = "your-preview-id"
+id = "your-production-id"
+
+[env.production]
+kv_namespaces = [
+  { binding = "N8N_KV", id = "your-production-id" }
+]
