@@ -1,0 +1,11 @@
+name = "n8n-app"
+compatibility_date = "2024-02-22"
+
+[build]
+command = "npm install && npm run build"
+
+[site]
+bucket = "./dist"
+
+[build.upload]
+format = "service-worker"
