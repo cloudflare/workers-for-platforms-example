@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Quiz & Money</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>Quiz & Money</h1>
+
+        <div id="quiz-box">
+            <h2 id="question">Loading question...</h2>
+
+            <div id="options"></div>
+
+            <button id="nextBtn" onclick="nextQuestion()">Next</button>
+
+            <h3 id="moneyDisplay">Money: ₹0</h3>
+        </div>
+
+    </div>
+
+<script src="script.js"></script>
+</body>
+</html>
