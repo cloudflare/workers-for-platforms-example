@@ -6,7 +6,7 @@ export function renderPage(body: string): string {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Workers for Platforms Example</title>
+    <title>Workers for Platforms Example!</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; }
         .container { max-width: 800px; margin: 0 auto; }
