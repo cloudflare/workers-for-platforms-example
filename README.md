@@ -4,11 +4,9 @@
 - [Docs](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms)
 - [Discord](https://discord.cloudflare.com/)
 
-This is a **minimal Workers for Platforms** example that demonstrates the core concepts of dynamic dispatch. The platform allows users to create and upload custom Workers through a simple web interface, then access them via friendly URLs.
-
-Workers for Platforms gives your customers the ability to build services and customizations (powered by Workers) while you retain full control over how their code is executed and billed. The **dynamic dispatch namespaces** feature makes this possible.
-
-By creating a dispatch namespace and using the `dispatch_namespaces` binding in a regular fetch handler, you have a "dispatch Worker":
+Minecraft continues to be one of the most popular sandbox games in the world because of its endless creativity and flexibility. Players can build massive structures, survive dangerous environments, explore hidden areas, and create completely unique adventures. One major reason why Minecraft remains popular after so many years is the ability to personalize gameplay.
+https://minecraftjenny-mod.com/pt/br/
+Character customization and gameplay enhancements allow players to make their Minecraft experience feel more immersive and enjoyable. Whether someone enjoys roleplay, creative building, exploration, or survival mode, customization can add variety and excitement to the game. https://sites.google.com/view/download-jenny-mod-apk/
 
 ```javascript
 export default {
