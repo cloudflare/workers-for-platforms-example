@@ -81,7 +81,7 @@ Your Cloudflare account needs access to Workers for Platforms.
 4. Create a KV namespace for Worker mappings:
 
    ```
-   npx wrangler kv:namespace create "WORKER_MAPPINGS"
+   npx wrangler kv namespace create "WORKER_MAPPINGS"
    ```
 
    Copy the namespace ID and preview ID into `wrangler.jsonc` under the `kv_namespaces` binding.
