@@ -1,5 +1,31 @@
 # Workers for Platforms Example Project
+**This workflow looks solid for deploying a Cloudflare Worker via GitHub Actions.** A few observations and suggestions:
 
+### What's working well
+- ✅ Correctly gates deployment to `main` branch pushes only (PRs run checks but don't deploy)
+- ✅ Uses `npm ci` for reproducible installs
+- ✅ TypeScript checking and test running before deploy
+- ✅ `wrangler-action@v3` is the current major version
+
+### Potential improvements
+
+1. **Add `wrangler.toml` or `wrangler.jsonc` awareness** — The action auto-detects your wrangler config, but make sure your config file is committed and the `main` field points to your Worker entry point.
+
+2. **Pin the action version** — `@v3` floats to the latest minor/patch. For reproducibility, consider pinning to a specific version (e.g., `cloudflare/wrangler-action@v3.14.0`).
+
+3. **`--if-present` on tests** — `npm run test --if-present` silently skips if no test script exists. If tests are required for deployment, remove `--if-present` so the pipeline fails when tests are missing.
+
+4. **Secret names** — Ensure `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set in your GitHub repo's **Settings → Secrets and variables → Actions**. The API token needs the "Edit Cloudflare Workers" template permission (or equivalent scoped permissions).
+
+5. **Deploy command** — If you're not deploying a standard Worker (e.g., Pages, Pages Functions, or a Worker with custom commands), you may need to specify `command: deploy` explicitly or add pre/post deploy steps.
+
+### What are you looking to do?
+
+- Get this workflow **working / troubleshoot a failure**?
+- **Improve or extend** it (e.g., add environments, previews on PRs, deploy Pages instead)?
+- Understand **permissions or token scoping** for the API token?
+
+Let me know and I can dig deeper into any of these.
 - [Blog post](https://blog.cloudflare.com/workers-for-platforms/)
 - [Docs](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms)
 - [Discord](https://discord.cloudflare.com/)
