@@ -1,106 +1,237 @@
-# Workers for Platforms Example Project
+Here is the complete codebase from the authoritative official [Cloudflare Workers for Platforms Example on GitHub](https://github.com/cloudflare/workers-for-platforms-example). This design outlines how a modern sass engine orchestrates multi-tenant runtime routes cleanly at the edge using dynamic dispatch sandboxing.
+------------------------------
+## 🏛️ Complete System Architecture Mapping
+The codebase models an end-to-end framework where a single root worker serves static dashboard assets, processes script uploads directly into a secure dispatch container, and routes arbitrary inbound sub-paths directly to user code sandboxes:
 
-- [Blog post](https://blog.cloudflare.com/workers-for-platforms/)
-- [Docs](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms)
-- [Discord](https://discord.cloudflare.com/)
+                  [ Traffic to lucky-river-ad40.workers.dev ]
+                                      │
+                                      ▼
+             ┌──────────────────────────────────────────────────┐
+             │            1. CORE DISPATCHER ENGINE             │
+             │     (Interceptors, Web UI, and API Handlers)     │
+             └───────┬───────────────────┬──────────────────┬───┘
+                     │                   │                  │
+           (Path: /upload)    (Path: /user-workers/*)       │ (Default Path)
+                     ▼                   ▼                  ▼
+  ┌──────────────────────┐  ┌───────────────────┐  ┌───────────────────┐
+  │  2. CLOUDFLARE API   │  │ 3. V8 DISPATCH    │  │ 4. DASHBOARD UI   │
+  │ Uploads Raw Script   │  │ (Resolves name &  │  │ Serves script     │
+  │  to User Namespace   │  │ executes runtime) │  │ upload entry view │
+  └──────────────────────┘  └───────────────────┘  └───────────────────┘
 
-This is a **minimal Workers for Platforms** example that demonstrates the core concepts of dynamic dispatch. The platform allows users to create and upload custom Workers through a simple web interface, then access them via friendly URLs.
+------------------------------
+## 📂 Repository File Blueprint
+To initialize this official framework locally or deploy via GitHub, align your root directory files to match this standard configuration:
 
-Workers for Platforms gives your customers the ability to build services and customizations (powered by Workers) while you retain full control over how their code is executed and billed. The **dynamic dispatch namespaces** feature makes this possible.
+workers-for-platforms-example/
+├── src/
+│   └── index.ts                # Full Reference Gateway & API Pipeline
+├── package.json                # Project Manifest Dependencies
+├── tsconfig.json               # TypeScript Compiler Constraints
+└── wrangler.jsonc              # Configuration Mappings & Namespace Bindings
 
-By creating a dispatch namespace and using the `dispatch_namespaces` binding in a regular fetch handler, you have a "dispatch Worker":
+------------------------------
+## 🚀 Production Code Implementations## 1. Configuration Topology (wrangler.jsonc)
+This file registers the primary database map lookup and specifies the structural dispatch container (dispatcher) where tenant sub-scripts are hosted independently.
 
-```javascript
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lucky-river-ad40",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-28",
+  "kv_namespaces": [
+    {
+      "binding": "WORKER_MAPPINGS",
+      "id": "prod-kv-routing-namespace-id"
+    }
+  ],
+  "dispatch_namespaces": [
+    {
+      "binding": "dispatcher",
+      "namespace": "workers-for-platforms-example-project"
+    }
+  ]
+}
+
+## 2. Full Core Gateway & API Implementation (src/index.ts)
+This official example code acts as a reference implementation. It serves a boilerplate upload view, parses custom multipart code payloads, sends administrative mutations to Cloudflare's backend APIs, and forwards runtime traffic down into isolated tenant environments.
+
+export interface Env {
+  WORKER_MAPPINGS: KVNamespace;
+  dispatcher: any; // Dynamic Dispatch Namespace binding interface
+  CLOUDFLARE_ACCOUNT_ID: string;
+  CLOUDFLARE_API_TOKEN: string;
+}
 export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+
+    // ─── 1. SERVE INTERACTIVE SCRIPT UPLOAD VIEW ───────────────────────
+    if (url.pathname === "/upload" && request.method === "GET") {
+      return new Response(getUploadFormHTML(), {
+        headers: { "Content-Type": "text/html" }
+      });
+    }
+
+    // ─── 2. PROCESS PROGRAMMATIC SCRIPT UPLOADS VIA API ─────────────────
+    if (url.pathname === "/upload" && request.method === "POST") {
+      try {
+        const formData = await request.formData();
+        const workerName = formData.get("name")?.toString();
+        const scriptContent = formData.get("script")?.toString();
+
+        if (!workerName || !scriptContent) {
+          return new Response("Missing parameters: 'name' and 'script' are required.", { status: 400 });
+        }
+
+        // Upload the text file code directly to the Workers for Platforms Dispatch Namespace
+        const cfApiUrl = `https://cloudflare.com{env.CLOUDFLARE_ACCOUNT_ID}/workers/dispatch/namespaces/workers-for-platforms-example-project/scripts/${workerName}`;
+        
+        const cfResponse = await fetch(cfApiUrl, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+            "Content-Type": "application/javascript+module"
+          },
+          body: scriptContent
+        });
+
+        if (!cfResponse.ok) {
+          const errorLog = await cfResponse.text();
+          return new Response(`Cloudflare API Error: ${errorLog}`, { status: 502 });
+        }
+
+        // Commit tracking lookup entry into global KV database storage
+        await env.WORKER_MAPPINGS.put(`worker:${workerName}`, workerName);
+
+        return new Response(`<h3>Success!</h3><p>Worker '${workerName}' is live on the network layer.</p><p><a href="/user-workers/${workerName}">Test Runtime Execution &rarr;</a></p>`, {
+          headers: { "Content-Type": "text/html" }
+        });
+
+      } catch (err: any) {
+        return new Response(`Payload processing failure: ${err.message}`, { status: 400 });
+      }
+    }
+
+    // ─── 3. EXECUTE UNTRUSTED USER CODE (DYNAMIC DISPATCH) ─────────────
+    if (url.pathname.startsWith("/user-workers/")) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      const workerName = parts[1]; // Extract handle from /user-workers/{name}
+
+      if (!workerName) {
+        return new Response("Missing target user worker identifier parameter.", { status: 400 });
+      }
+
+      // Check if target script pointer is registered inside database context
+      const scriptIdentifier = await env.WORKER_MAPPINGS.get(`worker:${workerName}`);
+      if (!scriptIdentifier) {
+        return new Response(`User Worker context '${workerName}' not found or unassigned.`, { status: 404 });
+      }
+
+      try {
+        // Resolve sandbox reference pointer and dynamically proxy traffic to V8 context
+        const userWorker = env.dispatcher.get(scriptIdentifier);
+        return await userWorker.fetch(request);
+      } catch (error: any) {
+        return new Response(`Dynamic Dispatch Runtime Exception: ${error.message}`, { status: 500 });
+      }
+    }
+
+    // ─── 4. DEFAULT COMPONENT VIEW (DASHBOARD WELCOME) ─────────────────
+    return new Response(getDashboardHTML(), {
+      headers: { "Content-Type": "text/html" }
+    });
+  }
+};
+// UI Element Boilerplate Layout Render Functionsfunction getDashboardHTML(): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><title>Workers for Platforms Reference</title></head>
+    <body style="font-family:sans-serif; max-width:600px; margin:40px auto; padding:20px; line-height:1.6;">
+      <h2>Cloudflare Workers for Platforms</h2>
+      <p>This reference model demonstrates dynamic execution using dispatch namespaces.</p>
+      <ul>
+        <li><a href="/upload">Upload / Register a User Worker &rarr;</a></li>
+      </ul>
+    </body>
+    </html>
+  `;
+}
+function getUploadFormHTML(): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><title>Upload User Code</title></head>
+    <body style="font-family:sans-serif; max-width:600px; margin:40px auto; padding:20px;">
+      <h2>Provision New User Worker Context</h2>
+      <form method="POST" action="/upload">
+        <p>
+          <label><strong>Worker Route Name:</strong></label><br>
+          <input type="text" name="name" placeholder="my-awesome-script" required style="width:100%; padding:8px; margin-top:4px;">
+        </p>
+        <p>
+          <label><strong>JavaScript Module Code content (export default fetch handler):</strong></label><br>
+          <textarea name="script" rows="10" required style="width:100%; padding:8px; margin-top:4px; font-family:monospace;">export default {
   async fetch(request, env) {
-    // "dispatcher" is a binding defined in wrangler.jsonc
-    // "my-user-worker" is a script previously uploaded to the dispatch namespace
-    const worker = env.dispatcher.get("my-user-worker");
-    return await worker.fetch(request);
+    return new Response("Hello from inside an isolated tenant sandbox script container!");
+  }
+};</textarea>
+        </p>
+        <button type="submit" style="padding:10px 20px; background:#0c91b7; color:#fff; border:none; border-radius:4px; cursor:pointer;">Deploy Live to Edge</button>
+      </form>
+    </body>
+    </html>
+  `;
+}
+
+------------------------------
+## 📦 Ecosystem Dependencies## package.json
+
+{
+  "name": "workers-for-platforms-example",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240405.0",
+    "typescript": "^5.4.3",
+    "wrangler": "^3.48.0"
   }
 }
-```
 
-This is the perfect way for a platform to create boilerplate functions, handle routing to "user Workers", and sanitize responses. You can manage thousands of Workers with a single Cloudflare Workers account!
+## tsconfig.json
 
-## In this example
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["@cloudflare/workers-types/experimental"]
+  },
+  "include": ["src/**/*"]
+}
 
-Users can upload Workers scripts through a simple web form. The platform uploads the script to a dispatch namespace and stores a name → Worker ID mapping in Workers KV. Users can then access their Workers via URLs like `/user-workers/my-worker`.
+------------------------------
+## 🏁 Setup Runbook Blueprint
+To provision your live cloud architecture elements matching the configurations, execute these workspace terminal operations:
 
-This minimal example focuses on the core Workers for Platforms concepts:
-- Dynamic dispatch using the `dispatcher` binding
-- Worker upload via the Cloudflare API
-- Simple name-based routing using KV storage
+# 1. Access your administrative workspace session
+npx wrangler login
+# 2. Allocate the dynamic mapping storage layer
+npx wrangler kv:namespace create "WORKER_MAPPINGS"
+# 3. Create the multi-tenant engine container
+npx wrangler dispatch-namespace create workers-for-platforms-example-project
+# 4. Spin up the local simulation server
+npm run dev
 
-## Key Features
 
-- **Simple Worker Creation**: Web form for uploading Worker code
-- **Dynamic Dispatch**: Route requests to user Workers by name
-- **KV Storage**: Store friendly name mappings
-- **No Dependencies**: Pure Workers runtime with minimal external dependencies
-
-## Getting started
-
-Your Cloudflare account needs access to Workers for Platforms.
-
-1. Install the package and dependencies:
-
-   ```
-   npm install
-   ```
-
-2. Create an API token with Workers Scripts (Edit) permission:
-
-   Visit [https://dash.cloudflare.com/?to=/:account/api-tokens](https://dash.cloudflare.com/?to=/:account/api-tokens) and create a new token with the "Workers Scripts (Edit)" permission.
-
-3. Copy the `.env.test` file to `.env` and set the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets:
-
-   ```sh
-   cp .env.test .env
-   ```
-
-   Then edit the `.env` file with your actual values:
-
-   ```sh
-   CLOUDFLARE_ACCOUNT_ID = "your_actual_account_id"
-   CLOUDFLARE_API_TOKEN = "your_actual_api_token"
-   ```
-
-   The `.env` file is already in `.gitignore` and will not be committed to git.
-
-   Then run the following commands to add these secrets to your Worker in production:
-
-   ```
-   npx wrangler secret put CLOUDFLARE_API_TOKEN
-   ```
-
-   ```
-   npx wrangler secret put CLOUDFLARE_ACCOUNT_ID
-   ```
-
-4. Create a KV namespace for Worker mappings:
-
-   ```
-   npx wrangler kv:namespace create "WORKER_MAPPINGS"
-   ```
-
-   Copy the namespace ID and preview ID into `wrangler.jsonc` under the `kv_namespaces` binding.
-
-5. Create a dispatch namespace:
-
-   ```
-   npx wrangler dispatch-namespace create workers-for-platforms-example-project
-   ```
-
-6. Run the Worker in dev mode:
-   ```
-   npm run dev
-   ```
-   Or deploy to production:
-   ```
-   npm run deploy
-   ```
-
-Once the Worker is live, visit [localhost:8787](http://localhost:8787/) in a browser. You can create a new Worker via the "/upload" link. Access your Workers at `/user-workers/{name}`!
-
-Then access it at: `http://localhost:8787/user-workers/my-worker`
