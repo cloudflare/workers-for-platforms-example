@@ -1,4 +1,31 @@
-# Workers for Platforms Example Project
+# Cloudflare Worker Topology Configuration (wrangler.toml)
+
+# ==============================================================================# Cloudflare Worker Infrastructure Topology Configuration# File: wrangler.toml# Description: Defines the core runtime properties, global routing patterns, #              and environment variable blocks for the apexcapitalweb.com edge layer.# ==============================================================================
+
+name = "apexcapitalweb-edge-infrastructure"
+main = "dist/index.js"
+compatibility_date = "2026-09-08"
+# ------------------------------------------------------------------------------# Production Routing Environment# ------------------------------------------------------------------------------# Configures the Worker to execute on specific incoming URL patterns.# Traffic passing through the Perimeter Guard intercepts connections on these domains.
+
+[[routes]]
+pattern = "://apexcapitalweb.com*"
+
+zone_name = "apexcapitalweb.com"
+# ------------------------------------------------------------------------------# Global Environmental Variables (Runtime Bindings)# ------------------------------------------------------------------------------# Non-sensitive configuration constants exposed directly to the wrangler execution context.
+
+[vars]
+ENVIRONMENT = "production"
+ORIGIN_BACKEND_ADDRESS = "http://45.157.99.130:8080"
+TELEMETRY_HEADER_NAME = "X-API-Summary-Flags"
+# ------------------------------------------------------------------------------# Bundling and Optimizations Options# ------------------------------------------------------------------------------# Since a dedicated custom build system (build.js) handles minification # and assembly, standard wrangler-managed automatic bundling can be restricted.
+
+[build]
+
+command = "npm run build"
+watch_dir = "src"
+# ------------------------------------------------------------------------------# Edge Storage & Cache Framework (Optional Slots)# ------------------------------------------------------------------------------# Uncomment and configure if your perimeter tracking requires distributed KV state storage.# [[kv_namespaces]]# binding = "PERIMETER_GUARD_KV"# id = "your_kv_namespace_id_here"
+
+
 
 - [Blog post](https://blog.cloudflare.com/workers-for-platforms/)
 - [Docs](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms)
