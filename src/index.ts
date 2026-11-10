@@ -1,190 +1,215 @@
+// Copyright (c) 2022 Cloudflare, Inc.
+// Licensed under the APACHE LICENSE, VERSION 2.0 license found in the LICENSE file or at http://www.apache.org/licenses/LICENSE-2.0
+
+import { Hono } from 'hono';
+
+import { AddDispatchLimits, AddOutboundWorker, FetchTable, GetDispatchLimitFromScript, GetOutboundWorkerFromScript, Initialize } from './db';
 import type { Env } from './env';
-import { renderPage, UploadPage, BuildTable } from './render';
-import Cloudflare from 'cloudflare';
-import { toFile } from 'cloudflare/index';
-import type { ScriptUpdateParams } from 'cloudflare/resources/workers-for-platforms/dispatch/namespaces/scripts/scripts';
+import {
+  GetScriptsByTags,
+  DeleteScriptInDispatchNamespace,
+  GetScriptsInDispatchNamespace,
+  PutScriptInDispatchNamespace,
+  PutTagsOnScript,
+  GetTagsOnScript,
+} from './resource';
+import { handleDispatchError, withCustomer, withDb } from './router';
+import { renderPage, BuildTable, UploadPage } from './render';
+import { DispatchLimits, OutboundWorker, WorkerArgs } from './types';
 
-async function deployWorkerToNamespace(opts: {
-  namespaceName: string;
-  scriptName: string;
-  code: string;
-  accountId: string;
-  apiToken: string;
-  bindings?: ScriptUpdateParams.Metadata['bindings'];
-}) {
-  const { namespaceName, scriptName, code, accountId, apiToken, bindings = [] } = opts;
-  const cf = new Cloudflare({ apiToken });
+const app = new Hono<{ Bindings: Env }>();
 
+app.get('/favicon.cio', () => {
+  return new Response();
+});
+
+/*
+ * Dumps the state of the app
+ */
+app.get('/', withDb, async (c) => {
+  let body = `
+    <hr class="solid"><br/>
+    <div>
+      <form style="display: inline" action="/init"><input type="submit" value="Initialize" /></form>
+      <small> - Resets db and dispatch namespace to initial state</small>
+    </div>
+    <h2>DB Tables</h2>`;
+
+  /*
+    * DB data
+    */
   try {
-    await cf.workersForPlatforms.dispatch.namespaces.get(namespaceName, {
-      account_id: accountId,
-    });
-  } catch {
-    await cf.workersForPlatforms.dispatch.namespaces.create({
-      account_id: accountId,
-      name: namespaceName,
-    });
+    body += [
+      BuildTable('customers', await FetchTable(c.var.db, 'customers')),
+      BuildTable('customer_tokens', await FetchTable(c.var.db, 'customer_tokens')),
+    ].join('');
+  } catch (e) {
+    body += '<div>No DB data. Do you need to <a href="/init">initialize</a>?</div>';
   }
 
-  const moduleFileName = `${scriptName}.mjs`;
+  /*
+    * Dispatch Namespace data
+    */
+  try {
+    const scripts = await GetScriptsInDispatchNamespace(c.env);
+    body += '</br><h2>Dispatch Namespace</h2>';
+    body += BuildTable(c.env.DISPATCH_NAMESPACE_NAME, scripts);
+  } catch (e) {
+    console.log(JSON.stringify(e, Object.getOwnPropertyNames(e)));
+    body += `<div>Dispatch namespace "${c.env.DISPATCH_NAMESPACE_NAME}" was not found.</div>`;
+  }
 
-  await cf.workersForPlatforms.dispatch.namespaces.scripts.update(
-    namespaceName,
-    scriptName,
-    {
-      account_id: accountId,
-      metadata: {
-        main_module: moduleFileName,
-        bindings,
-      },
-      files: [
-        await toFile(new TextEncoder().encode(code), moduleFileName, {
-          type: "application/javascript+module",
-        }),
-      ],
+  return c.html(renderPage(body));
+});
+
+/*
+ * Initialize example data
+ */
+app.get('/init', withDb, async (c) => {
+  const scripts = await GetScriptsInDispatchNamespace(c.env);
+  await Promise.all(scripts.map(async (script) => DeleteScriptInDispatchNamespace(c.env, script.id)));
+  await Initialize(c.var.db);
+  return Response.redirect(c.req.url.replace('/init', ''));
+});
+
+
+/*
+ * Where a customer can upload a script
+ */ 
+app.get('/upload', (c) => {
+  return c.html(renderPage(UploadPage));
+});
+
+/*
+ * Gets scripts for a customer
+ */ 
+app.get('/script', withDb, withCustomer, async (c) => {
+  const scripts = await GetScriptsByTags(c.env, [{ tag: c.var.customer.id, allow: true }]);
+  return c.json(scripts);
+});
+
+/*
+ * Gets scripts for a customer
+ */ 
+app.get('/dispatch/:name', withDb, async (c) => {
+  try {
+    // TODO: doesn't work with wrangler local yet
+
+    /*
+      * look up the worker within our namespace binding.
+      * Also look up any custom config tied to this script + outbound workers on this script
+      * to attach to the GET call.
+      *
+      * this is a lazy operation. if the worker does not exist in our namespace,
+      * no error will be returned until we actually try to `.fetch()` against it.
+      */
+    const scriptName = c.req.param('name');
+    const dispatchLimits = (await GetDispatchLimitFromScript(c.var.db, scriptName)).results as unknown as DispatchLimits;
+    const outboundWorker = (await GetOutboundWorkerFromScript(c.var.db, scriptName)).results as unknown as OutboundWorker;
+    const workerArgs: WorkerArgs = {};
+    const worker = c.env.dispatcher.get(scriptName, workerArgs, { limits: dispatchLimits, outbound: outboundWorker?.outbound_script_id });
+    /*
+      * call `.fetch()` on the retrieved worker to invoke it with the request.
+      *
+      * either `await` or `.catch()` must be used here to return a different
+      * response for the 'worker not found' exception.
+      */
+    return await worker.fetch(c.req.raw);
+  } catch (e: unknown) {
+    return handleDispatchError(c, e);
+  }
+});
+
+/*
+ *  Uploads a customer script 
+ */
+app.put('/script/:name', withDb, withCustomer, async (c) => {
+  const scriptName = c.req.param('name');
+
+  /*
+    * It would be ideal to lock this block of code based on scriptName to avoid race conditions.
+    * Maybe with a Durable Object?
+    * https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
+    */
+
+  /*
+    * Check if script name exists and is owned by customer.
+    * If exists and not owned, deny request.
+    * If exists and owned, the request is good and means the script is being updated.
+    * If not exists, it's the customer's to claim.
+    */
+  try {
+    const tags = await GetTagsOnScript(c.env, scriptName);
+    if (tags.length > 0 && !tags.includes(c.var.customer.id)) {
+      return c.text('Script name already reserved', 409);
     }
-  );
+  } catch (e) {
+    return c.text('Could not complete request', 500);
+  }
 
-  return scriptName;
-}
+  /*
+    * Get script content and limits from request.
+    */
+  let scriptContent: string;
+  let limits: DispatchLimits;
+  let outbound: OutboundWorker;
+  try {
+    const data: {
+      script: string;
+      dispatch_config: {
+        limits?: { cpuMs: number; memory: number };
+        outbound: string;
+      };
+    } = (await c.req.json()) as {
+      script: string;
+      dispatch_config: {
+        limits?: { cpuMs: number; memory: number };
+        outbound: string;
+      };
+    };
 
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    const path = url.pathname;
+    scriptContent = data.script;
+    limits = { script_id: scriptName, ...data.dispatch_config.limits };
+    outbound = { script_id: scriptName, outbound_script_id: data.dispatch_config.outbound };
+  } catch (e) {
+    return c.text('Expected json: { script: string, dispatch_config: { limits?: { cpuMs: number, memory: number }, outbound: string }}', 400);
+  }
 
-    // Handle CORS for API requests
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      });
-    }
+  /*
+    * Upload the script to the dispatch namespace.
+    * On error, forward the response from the dispatch namespace API
+    * since it gives necessary feedback to the customer.
+    */
+  const scriptResponse = await PutScriptInDispatchNamespace(c.env, scriptName, scriptContent);
+  if (!scriptResponse.ok) {
+    return c.json(await scriptResponse.json(), 400)
+  }
 
-    try {
-      // Homepage - show worker creation form and current workers
-      if (path === '/' && request.method === 'GET') {
-        let body = `
-          <p><a href="/upload">Create a new Worker</a></p>
-          <hr>
-        `;
+  /*
+    * Persist the dispatch limits (if any) in d1 with the scriptName as primary key
+    */
+  if (limits.cpuMs || limits.memory) await AddDispatchLimits(c.var.db, limits);
 
-        try {
-          // Get worker mappings from KV
-          const kvList = await env.WORKER_MAPPINGS.list();
-          const mappings = await Promise.all(
-            kvList.keys.map(async (key) => ({
-              name: key.name,
-              worker_id: await env.WORKER_MAPPINGS.get(key.name) || 'unknown',
-              url: `/user-workers/${key.name}`,
-            }))
-          );
-          body += BuildTable('User Workers', mappings);
-        } catch (e) {
-          body += '<p>Error loading worker data. Make sure your bindings are configured correctly.</p>';
-        }
+  /*
+    * Persist the outbound worker in d1 with scriptName as primary key
+    * In practice you will need to add more params with the outbound worker, refer
+    * to our documentation here: https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/platform/outbound-workers/
+    */
+  if (outbound?.outbound_script_id !== '') {
+    await AddOutboundWorker(c.var.db, outbound);
+  }
 
-        return new Response(renderPage(body), {
-          headers: { 'Content-Type': 'text/html' },
-        });
-      }
+  /*
+    * Add customer_id and plan_type as script tags.
+    * If that errors, something is wrong so log it!
+    * Could add logic to delete script if that's immediately problematic.
+    */
+  const tagsResponse = await PutTagsOnScript(c.env, scriptName, [c.var.customer.id, c.var.customer.plan_type]);
+  if (!tagsResponse.ok) {
+    console.log(tagsResponse.url, tagsResponse.status, await tagsResponse.text());
+  }
 
-      // Worker creation form
-      if (path === '/upload' && request.method === 'GET') {
-        return new Response(renderPage(UploadPage), {
-          headers: { 'Content-Type': 'text/html' },
-        });
-      }
+  return c.text('Success', 201);
+});
 
-      // Create worker endpoint (handles both form data and JSON)
-      if (path === '/create-worker' && request.method === 'POST') {
-        let name: string, code: string;
-
-        const contentType = request.headers.get('content-type') || '';
-
-        if (contentType.includes('application/json')) {
-          const body = await request.json() as { name: string; code: string };
-          name = body.name;
-          code = body.code;
-        } else if (contentType.includes('application/x-www-form-urlencoded')) {
-          const formData = await request.formData();
-          name = formData.get('workerName') as string;
-          code = formData.get('workerCode') as string;
-        } else {
-          return new Response('Unsupported content type', { status: 400 });
-        }
-
-        if (!name || !code) {
-          return new Response('Missing name or code', { status: 400 });
-        }
-
-        // Validate worker name (alphanumeric and hyphens only)
-        if (!/^[a-zA-Z0-9-]+$/.test(name)) {
-          return new Response('Worker name must be alphanumeric with hyphens only', { status: 400 });
-        }
-
-        try {
-          // Upload worker to dispatch namespace
-          const workerId = await deployWorkerToNamespace({
-            namespaceName: env.DISPATCH_NAMESPACE_NAME,
-            scriptName: name,
-            code,
-            accountId: env.CLOUDFLARE_ACCOUNT_ID,
-            apiToken: env.CLOUDFLARE_API_TOKEN,
-          });
-
-          // Store mapping in KV
-          await env.WORKER_MAPPINGS.put(name, workerId);
-
-          return new Response('Worker created successfully', {
-            status: 201,
-            headers: {
-              'Access-Control-Allow-Origin': '*',
-              'Content-Type': 'text/plain',
-            },
-          });
-        } catch (error) {
-          console.error('Error creating worker:', error);
-          return new Response(`Failed to create worker: ${error}`, { status: 500 });
-        }
-      }
-
-      // Dynamic dispatch to user workers
-      if (path.startsWith('/user-workers/')) {
-        const workerName = path.slice('/user-workers/'.length);
-
-        if (!workerName) {
-          return new Response('Worker name is required', { status: 400 });
-        }
-
-        try {
-          // Get worker ID from KV
-          const workerId = await env.WORKER_MAPPINGS.get(workerName);
-
-          if (!workerId) {
-            return new Response(`Worker '${workerName}' not found`, { status: 404 });
-          }
-
-          // Dispatch to the user worker
-          const worker = env.dispatcher.get(workerId);
-          return await worker.fetch(request);
-        } catch (error) {
-          console.error('Error dispatching to worker:', error);
-          if (error instanceof Error && error.message.includes('Worker not found')) {
-            return new Response(`Worker '${workerName}' not found`, { status: 404 });
-          }
-          return new Response('Internal server error', { status: 500 });
-        }
-      }
-
-      // 404 for all other routes
-      return new Response('Not found', { status: 404 });
-    } catch (error) {
-      console.error('Request error:', error);
-      return new Response('Internal server error', { status: 500 });
-    }
-  },
-};
+export default app;
