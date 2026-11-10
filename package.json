@@ -3,27 +3,26 @@
   "version": "1.0.0",
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=18"
+    "node": "<20"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250922.0",
-    "@types/node": "^18.0.0",
+    "@cloudflare/d1": "^1.4.1",
+    "@cloudflare/workers-types": "^4.20240329.0",
     "@typescript-eslint/eslint-plugin": "^5.37.0",
     "@typescript-eslint/parser": "^5.37.0",
+    "better-sqlite3": "^7.6.2",
     "eslint": "^8.23.1",
-    "tsx": "^4.20.4",
     "typescript": "^4.8.3",
-    "wrangler": "^4.38.0"
-  },
-  "dependencies": {
-    "cloudflare": "^5.1.0"
+    "wrangler": "^3.42.0"
   },
   "scripts": {
-    "deploy:wfp": "tsx scripts/deploy-wfp.ts",
-    "dev": "wrangler dev",
     "start": "wrangler dev",
-    "deploy": "npm run deploy:wfp && wrangler deploy",
+    "deploy": "wrangler publish",
     "lint": "npx eslint ./src",
     "format": "npx prettier --write '**/*.{ts,js,cjs,json}'"
+  },
+  "dependencies": {
+    "hono": "^4.2.1",
+    "workers-qb": "^0.1.1"
   }
 }
